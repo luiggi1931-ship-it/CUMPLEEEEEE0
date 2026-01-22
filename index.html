@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Misión Cumpleaños</title>
+    <style>
+        :root {
+            --pink: #ffb7ce;
+            --dark-pink: #ff8fab;
+            --cream: #fff5e1;
+            --cream-dark: #ffe4e1;
+            --blue: #a2d2ff;
+            --green: #4caf50;
+            --orange: #ff9800;
+            --red: #f44336;
+        }
+
+        /* FIX: Evita selección y menu contextual en movil */
+        * {
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--cream);
+            background-image: repeating-linear-gradient(90deg, var(--cream), var(--cream) 25px, var(--cream-dark) 25px, var(--cream-dark) 50px);
+            overflow: hidden;
+        }
+
+        #game-container { position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; }
+
+        .screen { display: none; flex-direction: column; align-items: center; justify-content: center; width: 90%; text-align: center; animation: fadeIn 0.4s; }
+        .active { display: flex; }
+
+        #game-ui {
+            position: absolute; top: 15px; width: 90%; z-index: 100;
+            display: none; flex-direction: column; gap: 8px;
+        }
+
+        .top-row { display: flex; justify-content: space-between; align-items: center; width: 100%; }
+
+        .hp-bar-container {
+            width: 100%; height: 18px; background: #eee;
+            border-radius: 10px; border: 2px solid white; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        #hp-fill { width: 100%; height: 100%; background: var(--green); transition: width 0.3s; }
+
+        .badge { background: white; padding: 6px 12px; border-radius: 15px; font-size: 0.85rem; font-weight: bold; color: var(--dark-pink); border: 1.5px solid var(--pink); box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+
+        .instruction-badge {
+            background: linear-gradient(135deg, var(--dark-pink), #ff5c8a);
+            color: white; padding: 10px 20px; border-radius: 25px;
+            font-weight: bold; font-size: 1.1rem; box-shadow: 0 4px 15px rgba(255, 143, 171, 0.4);
+            margin-bottom: 10px; border: 2px solid white;
+        }
+
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.85);
+            z-index: 300; display: none; flex-direction: column;
+            align-items: center; justify-content: center;
+            backdrop-filter: blur(5px);
+        }
+
+        #msg-overlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: white; padding: 25px 45px; border-radius: 25px;
+            color: var(--dark-pink); font-size: 1.6rem; font-weight: bold;
+            z-index: 200; display: none; border: 4px solid var(--pink);
+            box-shadow: 0 15px 35px rgba(0,0,0,0.15); animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        #countdown-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 400; display: none; align-items: center; justify-content: center;
+            background: rgba(255,255,255,0.4); pointer-events: none;
+        }
+
+        .countdown-text {
+            font-size: 8rem; font-weight: 900; color: var(--dark-pink);
+            text-shadow: 4px 4px 0px white, -4px -4px 0px white;
+            animation: countPulse 1s ease-out;
+        }
+
+        #game-canvas {
+            width: 100%; height: 62vh; position: relative;
+            background: white; border-radius: 35px; border: 5px solid var(--pink);
+            overflow: hidden; margin: 10px 0; box-shadow: 0 10px 20px rgba(0,0,0,0.05);
+        }
+
+        .ingredient { font-size: 5rem; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); z-index: 10; filter: drop-shadow(0 5px 5px rgba(0,0,0,0.1)); }
+        
+        /* FIX: Hitbox invisible gigante para facilitar el toque */
+        .ant { 
+            font-size: 2.2rem; position: absolute; z-index: 20; 
+            padding: 20px; margin: -20px; /* Expande el área de toque */
+            cursor: pointer; filter: drop-shadow(0 2px 2px rgba(0,0,0,0.2)); 
+        }
+
+        .heart-item { font-size: 2.5rem; position: absolute; cursor: pointer; z-index: 25; animation: heartFloat 1s infinite alternate; filter: drop-shadow(0 0 10px white); padding: 10px; margin: -10px; }
+
+        .btn {
+            background-color: var(--dark-pink); color: white; border: none;
+            padding: 15px 30px; border-radius: 50px; font-size: 1.2rem;
+            font-weight: bold; cursor: pointer; box-shadow: 0 5px #ff5c8a; margin: 10px; transition: transform 0.1s;
+        }
+        .btn:active { transform: translateY(3px) !important; box-shadow: 0 2px #ff5c8a !important; }
+        .btn-ui { background:#ccc; box-shadow:0 4px #999; padding:8px 12px; font-size:0.9rem; margin: 0; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes popIn { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+        @keyframes flame { 0%, 100% { transform: scale(1); filter: brightness(1); } 50% { transform: scale(1.15); filter: brightness(1.3); } }
+        @keyframes countPulse { 0% { transform: scale(2); opacity: 0; } 50% { transform: scale(1); opacity: 1; } 100% { transform: scale(0.8); opacity: 0; } }
+        @keyframes floating { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
+        @keyframes heartFloat { from { transform: scale(1); } to { transform: scale(1.2); } }
+        @keyframes barShake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(5px); } 75% { transform: translateX(-5px); } }
+        @keyframes damageFloat { 0% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -60px); } }
+        @keyframes healFloat { 0% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -60px); } }
+        @keyframes gentleSway { 0%, 100% { transform: translateX(-8px); } 50% { transform: translateX(8px); } }
+
+        .fire-anim { animation: flame 0.6s infinite alternate; display: inline-block; }
+        .floating-emoji { animation: floating 3s ease-in-out infinite; display: inline-block; }
+        .shake-ui { animation: barShake 0.2s 2; }
+        .sway-wrapper { display: inline-block; animation: gentleSway 2.5s ease-in-out infinite; }
+        
+        .damage-popup { 
+            position: absolute; color: var(--red); font-weight: 900; font-size: 2.2rem; 
+            top: 40%; left: 50%; transform: translateX(-50%);
+            animation: damageFloat 0.7s forwards; z-index: 60; pointer-events: none;
+            text-shadow: 3px 3px 0px white;
+        }
+        .heal-popup { 
+            position: absolute; color: var(--green); font-weight: 900; font-size: 2.2rem; 
+            top: 40%; left: 50%; transform: translateX(-50%);
+            animation: healFloat 0.7s forwards; z-index: 60; pointer-events: none;
+            text-shadow: 3px 3px 0px white;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="msg-overlay">Siguiente Ronda...</div>
+    <div id="countdown-overlay"><div id="countdown-number" class="countdown-text">3</div></div>
+
+    <div id="pause-overlay" class="overlay">
+        <h1 style="color: var(--dark-pink);">Juego Pausado</h1>
+        <div class="floating-emoji" style="font-size: 5rem; margin-bottom: 20px;">⏸️</div>
+        <button class="btn" onclick="togglePause()">Reanudar</button>
+        <button class="btn" style="background: #ccc; box-shadow: 0 5px #999;" onclick="exitToMenu()">Salir al Menú</button>
+    </div>
+
+    <div id="game-ui">
+        <div class="top-row">
+            <div style="display: flex; gap: 5px;">
+                <button class="btn btn-ui" onclick="exitToMenu()">🏠</button>
+                <button class="btn btn-ui" onclick="togglePause()">⏸️</button>
+            </div>
+            <div class="badge" id="round-display">Ronda 1/3</div>
+            <div class="badge" id="diff-display">Normal</div>
+        </div>
+        <div class="hp-bar-container" id="hp-container"><div id="hp-fill"></div></div>
+    </div>
+
+    <div id="start-screen" class="screen active" style="background: rgba(255,255,255,0.7); padding: 30px; border-radius: 30px; border: 4px solid var(--pink);">
+        <h1 style="color: var(--dark-pink); font-size: 2.2rem; text-shadow: 2px 2px 0 white;">✨ ¡Operation: Cake Defense! ✨</h1>
+        <p style="font-weight: 500;">Las hormigas están hambrientas... ¡Protege los ingredientes de tu pastel!</p>
+        <div style="font-size: 5.5rem; margin: 25px;">
+            <span class="floating-emoji">👩‍🍳</span>
+            <span class="sway-wrapper" style="animation-delay: -1s;"><span class="floating-emoji" style="animation-delay: 0.5s;">🍰</span></span>
+        </div>
+        <button class="btn" onclick="showScreen('diff-screen')">¡Empezar Misión!</button>
+    </div>
+
+    <div id="diff-screen" class="screen">
+        <div style="background: rgba(255,255,255,0.8); padding: 30px; border-radius: 30px;">
+            <h2 style="color: #555;">Elige tu desafío</h2>
+            <button class="btn" style="background:#8bc34a; width: 220px;" onclick="startGame('facil')">Fácil</button>
+            <button class="btn" style="background:#ff9800; width: 220px;" onclick="startGame('normal')">Normal</button>
+            <button class="btn" style="background:#f44336; width: 220px;" onclick="startGame('dificil')">Difícil</button>
+            <button class="btn" style="background:#222; width: 220px;" onclick="startGame('experto')">Experto 💀</button>
+        </div>
+    </div>
+
+    <div id="game-screen" class="screen">
+        <div id="instruction-container" class="instruction-badge">Defiende la Harina</div>
+        <div id="game-canvas">
+            <div id="current-ingredient" class="ingredient">🌾</div>
+        </div>
+    </div>
+
+    <div id="fail-screen" class="screen" style="background: rgba(255,255,255,0.8); padding: 30px; border-radius: 30px;">
+        <h1 style="color: var(--red);">¡Misión Fallida! 🐜</h1>
+        <p>Se llevaron los ingredientes...</p>
+        <button class="btn" onclick="retryLevel()">Intentar de nuevo</button>
+    </div>
+
+    <div id="final-screen" class="screen">
+        <div id="cooking-sequence" style="background: rgba(255,255,255,0.8); padding: 30px; border-radius: 30px;">
+            <h2 id="cook-status" style="color: var(--dark-pink);">¡Mezclando ingredientes!</h2>
+            <div class="sway-wrapper">
+                <div id="cook-icon" style="font-size: 6rem; margin: 20px; display: inline-block;">🥣</div>
+            </div>
+        </div>
+        <div id="cake-reveal" style="display:none; background: rgba(255,255,255,0.85); padding: 30px; border-radius: 30px; border: 4px solid var(--pink);">
+            <h1 style="color: var(--dark-pink); text-shadow: 2px 2px 0 white;">🎂 ¡FELIZ CUMPLEAÑOS! 🎂</h1>
+            <div class="sway-wrapper" style="margin: 20px;">
+                <div class="fire-anim" style="font-size: 7rem;">🎂</div>
+            </div>
+            <p style="margin-top: 20px; font-style: italic; padding: 0 15px; color: #444; font-weight: 500;">
+                "Frida, espero que tu 21 de enero haya sido tan dulce como este pastel. ¡Gracias por defenderlo!"
+            </p>
+            <button class="btn" onclick="exitToMenu()">Volver a Jugar</button>
+        </div>
+    </div>
+</div>
+
+<button id="music-btn" style="position:fixed; bottom:20px; left:20px; border-radius:50%; width:50px; height:50px; border:none; background:var(--blue); font-size:1.5rem; color:white; box-shadow: 0 4px #7fb5da; z-index:1000;" onclick="toggleMusic()">🎵</button>
+<audio id="bday-music"></audio>
+
+<script>
+    const ingredients = [
+        { icon: '🌾', name: 'la Harina' },
+        { icon: '🥚', name: 'los Huevos' },
+        { icon: '🍚', name: 'el Azúcar' },
+        { icon: '🥛', name: 'la Leche' }
+    ];
+
+   // LISTA DE CANCIONES 
+    const playlist = [
+        'musica1.mp3', 
+        'cancion2.mp3',
+    ];
+
+    const audioPlayer = document.getElementById('bday-music');
+    let currentSongIndex = 0; // Empezamos en la 0
+
+    // Cargar la primera
+    audioPlayer.src = playlist[currentSongIndex];
+    audioPlayer.volume = 0.5;
+
+    // MAGIA: Cuando termine una, pasa a la siguiente
+    audioPlayer.onended = () => {
+        currentSongIndex++; // Sumamos 1 al índice
+        
+        // Si ya se acabaron todas, volver a la primera (0)
+        if (currentSongIndex >= playlist.length) {
+            currentSongIndex = 0;
+        }
+        
+        // Cargar y reproducir la nueva
+        audioPlayer.src = playlist[currentSongIndex];
+        audioPlayer.play().catch(()=>{});
+    };
+
+    const settings = {
+        // Subimos de 0.16 a 0.25 para que no se duerma en fácil
+        facil:   { baseSpeed: 0.25, perRound: 7, label: 'Fácil' },
+        
+        // Subimos de 0.28 a 0.40
+        normal:  { baseSpeed: 0.40, perRound: 14, label: 'Normal' },
+        
+        // Subimos de 0.42 a 0.60 (Aquí ya se pone serio)
+        dificil: { baseSpeed: 0.60, perRound: 28, label: 'Difícil' },
+        
+        // Subimos de 0.58 a 0.80 (Nivel Dios)
+        experto: { baseSpeed: 0.80, perRound: 56, label: 'Experto 💀' }
+    };
+
+    let currentStep = 0; let currentRound = 1; let ants = [];
+    let gameActive = false; let isPaused = false; let hp = 200;
+    let selectedDiff = 'normal'; let killed = 0; let animationId;
+    let spawnerInterval; 
+
+    // SISTEMA DE AUDIO DIGITAL (Sin archivos externos)
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = new AudioContext();
+
+    function playPopSound() {
+        if (!audioCtx) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(800, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.1);
+        
+        gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+        
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.1);
+    }
+
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        document.getElementById('game-ui').style.display = (id === 'game-screen') ? 'flex' : 'none';
+    }
+
+    function togglePause() {
+        if (!gameActive && !isPaused) return;
+        if (!isPaused) { isPaused = true; document.getElementById('pause-overlay').style.display = 'flex'; }
+        else { document.getElementById('pause-overlay').style.display = 'none'; startResumeCountdown(); }
+    }
+
+    function startResumeCountdown() {
+        const overlay = document.getElementById('countdown-overlay');
+        const num = document.getElementById('countdown-number');
+        overlay.style.display = 'flex';
+        let steps = ["1", "2", "3", "READY!"];
+        let i = 0;
+        function nextStep() {
+            if (i < steps.length) {
+                num.innerText = steps[i]; num.style.animation = 'none'; num.offsetHeight; 
+                num.style.animation = 'countPulse 1s ease-out'; i++; setTimeout(nextStep, 1000);
+            } else { overlay.style.display = 'none'; isPaused = false; animate(); }
+        }
+        nextStep();
+    }
+
+    function startGame(diff) {
+        // Inicializar Audio Context al primer toque
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        
+        selectedDiff = diff; currentStep = 0; currentRound = 1; isPaused = false;
+        hp = 200; 
+        document.getElementById('diff-display').innerText = settings[diff].label;
+        showScreen('game-screen'); loadLevel();
+    }
+
+    function loadLevel() {
+        updateHpBar(); killed = 0; isPaused = false;
+        ants.forEach(a => a.el.remove()); ants = [];
+        if(spawnerInterval) clearInterval(spawnerInterval);
+        
+        document.querySelectorAll('.heart-item').forEach(h => h.remove());
+        document.getElementById('current-ingredient').innerText = ingredients[currentStep].icon;
+        document.getElementById('instruction-container').innerText = `Defiende ${ingredients[currentStep].name}`;
+        document.getElementById('round-display').innerText = `Ronda ${currentRound}/3`;
+        
+        showMsg(`¡Ronda ${currentRound}!`, 1000, () => {
+            gameActive = true; 
+            startSpawning();
+            if (!animationId) animate();
+        });
+    }
+
+    // SPAWNER ROBUSTO (Intervalos en vez de frames)
+    function startSpawning() {
+        let antsSpawnedInRound = 0;
+        const totalToSpawn = settings[selectedDiff].perRound;
+        
+        spawnerInterval = setInterval(() => {
+            if (!gameActive) { clearInterval(spawnerInterval); return; }
+            if (isPaused) return; // Esperar si está en pausa
+            
+            if (antsSpawnedInRound < totalToSpawn) {
+                createAnt();
+                antsSpawnedInRound++;
+            } else {
+                clearInterval(spawnerInterval);
+            }
+        }, 600); // Velocidad de aparición
+    }
+
+    function showMsg(txt, time, callback) {
+        const ov = document.getElementById('msg-overlay');
+        ov.innerText = txt; ov.style.display = 'block';
+        setTimeout(() => { ov.style.display = 'none'; if(callback) callback(); }, time);
+    }
+
+    function createAnt() {
+        const canvas = document.getElementById('game-canvas');
+        const ant = document.createElement('div');
+        ant.className = 'ant'; ant.innerText = '🐜';
+        const side = Math.floor(Math.random() * 4);
+        let x, y;
+        if (side === 0) { x = -10; y = Math.random() * 100; }
+        else if (side === 1) { x = 110; y = Math.random() * 100; }
+        else if (side === 2) { x = Math.random() * 100; y = -10; }
+        else { x = Math.random() * 100; y = 110; }
+        ant.style.left = x + '%'; ant.style.top = y + '%';
+        
+        // EVENTO: POINTERDOWN (Mejor respuesta en movil)
+        ant.onpointerdown = (e) => {
+            if (isPaused) return; e.stopPropagation();
+            playPopSound(); // Sonido generado digitalmente
+            
+            ant.remove(); ants = ants.filter(a => a.el !== ant);
+            killed++;
+            if (Math.random() < 0.08) spawnHeart(ant.style.left, ant.style.top);
+            checkStatus();
+        };
+        canvas.appendChild(ant);
+        const roundMult = 1 + (currentRound - 1) * 0.25;
+        ants.push({ el: ant, x, y, speed: (settings[selectedDiff].baseSpeed * roundMult) + (Math.random() * 0.05), offset: Math.random() * 10 });
+    }
+
+    function spawnHeart(x, y) {
+        const canvas = document.getElementById('game-canvas');
+        const heart = document.createElement('div');
+        heart.className = 'heart-item'; heart.innerText = '💖';
+        heart.style.left = x; heart.style.top = y;
+        heart.onpointerdown = (e) => {
+            if (isPaused) return; e.stopPropagation();
+            hp = Math.min(200, hp + 30); updateHpBar();
+            const p = document.createElement('div'); p.className = 'heal-popup'; p.innerText = '+30';
+            canvas.appendChild(p); setTimeout(() => p.remove(), 700);
+            heart.remove();
+        };
+        canvas.appendChild(heart);
+        setTimeout(() => { if(heart.parentElement) heart.remove(); }, 4000);
+    }
+
+    function animate() {
+        if (!gameActive || isPaused) { cancelAnimationFrame(animationId); animationId = null; return; }
+        
+        ants.forEach((a) => {
+            const angle = Math.atan2(50 - a.y, 50 - a.x); a.offset += 0.1;
+            const zz = Math.sin(a.offset) * (currentRound * 0.5);
+            a.x += Math.cos(angle + zz) * a.speed; a.y += Math.sin(angle + zz) * a.speed;
+            a.el.style.left = a.x + '%'; a.el.style.top = a.y + '%';
+            
+            if (Math.abs(50 - a.x) < 4 && Math.abs(50 - a.y) < 4) {
+                takeDamage();
+                // Reinicia posición aleatoria
+                const side = Math.floor(Math.random() * 4);
+                if (side === 0) { a.x = -10; a.y = Math.random() * 100; }
+                else if (side === 1) { a.x = 110; a.y = Math.random() * 100; }
+                else if (side === 2) { a.x = Math.random() * 100; a.y = -10; }
+                else { a.x = Math.random() * 100; a.y = 110; }
+            }
+        });
+        animationId = requestAnimationFrame(animate);
+    }
+
+    function takeDamage() {
+        hp -= 10; updateHpBar();
+        document.getElementById('hp-container').classList.add('shake-ui');
+        setTimeout(() => document.getElementById('hp-container').classList.remove('shake-ui'), 200);
+        const p = document.createElement('div'); p.className = 'damage-popup'; p.innerText = '-10';
+        document.getElementById('game-canvas').appendChild(p);
+        setTimeout(() => p.remove(), 700);
+        if (hp <= 0) { gameActive = false; showScreen('fail-screen'); }
+    }
+
+    function checkStatus() {
+        if (killed >= settings[selectedDiff].perRound && gameActive) {
+            gameActive = false;
+            clearInterval(spawnerInterval);
+            
+            if (currentRound < 3) { currentRound++; showMsg("¡Ronda Completada!", 1200, loadLevel); }
+            else {
+                currentStep++; currentRound = 1;
+                if (currentStep < ingredients.length) { showMsg("¡Ingrediente Listo! 🌟", 1500, loadLevel); }
+                else { startCookingSequence(); }
+            }
+        }
+    }
+
+    function updateHpBar() {
+        const fill = document.getElementById('hp-fill'); const p = (hp / 200) * 100;
+        fill.style.width = Math.max(0, p) + '%';
+        fill.style.backgroundColor = p > 60 ? 'var(--green)' : p > 30 ? 'var(--orange)' : 'var(--red)';
+    }
+
+    function startCookingSequence() {
+        showScreen('final-screen'); const icon = document.getElementById('cook-icon'); const text = document.getElementById('cook-status');
+        icon.className = 'shake'; 
+        setTimeout(() => {
+            icon.className = 'fire-anim'; 
+            icon.innerText = "🔥"; text.innerText = "¡Al horno! Huele delicioso...";
+        }, 2500);
+        setTimeout(() => { document.getElementById('cooking-sequence').style.display = 'none'; document.getElementById('cake-reveal').style.display = 'block'; }, 5500);
+    }
+
+    function retryLevel() { hp = 200; isPaused = false; showScreen('game-screen'); loadLevel(); }
+    
+    function exitToMenu() { 
+        gameActive = false; isPaused = false;
+        if(spawnerInterval) clearInterval(spawnerInterval);
+        cancelAnimationFrame(animationId); animationId = null; 
+        document.getElementById('pause-overlay').style.display = 'none';
+        document.getElementById('countdown-overlay').style.display = 'none';
+        document.getElementById('cooking-sequence').style.display = 'block';
+        document.getElementById('cake-reveal').style.display = 'none';
+        document.getElementById('cook-icon').className = ''; 
+        document.getElementById('cook-icon').innerText = "🥣";
+        showScreen('start-screen'); 
+    }
+    function toggleMusic() { const m = document.getElementById('bday-music'); m.paused ? m.play() : m.pause(); }
+</script>
+</body>
+</html>
